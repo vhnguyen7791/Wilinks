@@ -1,0 +1,94 @@
+#========================================================================
+# NOM DU FICHIER  : Makefile
+#========================================================================
+# Auteur          : CM
+# Date  		  : 21/10/2011
+# Libelle         : Makefile du processus principal
+# Projet          : STREAMEASY
+# Indice          : BE086
+#========================================================================
+# Historique      :                                                      
+#BE000 21/10/2011 CM
+# - CREATION
+#BE008 25/11/2011 CM
+# - Ajout librairie I2c (gestion FRAM, ....)
+#		-> sauvegarde / restauration de la configuration en FRAM
+#BE009 30/11/2011 CM
+# - Ajout module apply_config. [ch]
+#BE010 02/12/2011 CM
+# - Ajout librairie syslog
+#BE012 13/12/2011 CM
+# - Ajout librairie fastcgi
+#BE014 03/01/2012 CM
+# - Integration compilation sur target NH4 / IMB1
+#BE020 24/01/2012 CM
+# - Ajout configuration password / login pour target
+#BE027 CM 17/02/2012   
+# - Ajout configuration fpga
+#BE034 CM 05/03/2012   
+# - Ajout gestion télécommandes / télésignalisations
+#BE047 CM 21/03/2012
+# - Ajout gestion SNTP (fuseau horaire, freq maj)
+#BE086 CM 10/09/2012
+# - Ajout gestion mise à l'heure par satellite
+#========================================================================
+
+CFLAGS=${ACTIA_CFLAGS}
+
+ifeq ($(make_login_password),y)
+CFLAGS+= -DSUPPORT_LOGIN_PASSWORD
+endif
+
+LDFLAGS=${ACTIA_LDFLAGS}
+
+ifeq ($(make_login_password),y)
+LDFLAGS+= -lcrypt
+endif
+
+EXEC= principal
+SRC= Config/apply_cfg.c \
+    	 Config/cfg_bird.c \
+	 Config/cfg_dhcp.c \
+	 Config/cfg_hostapd.c \
+	 Config/cfg_http.c \
+	 Config/cfg_jdb.c \
+	 Config/cfg_monitor.c \
+	 Config/cfg_multicast.c \
+	 Config/cfg_nat.c \
+	 Config/cfg_network.c \
+	 Config/cfg_time.c \
+	 Config/cfg_sntp.c \
+	 Config/cfg_ntp.c \
+	 Config/cfg_policyrouting.c \
+	 Config/cfg_radiomodem.c \
+	 Config/cfg_snmp.c \
+	 Config/cfg_syslog.c \
+	 Config/cfg_wifi.c \
+	 Config/cfg_wlan_N.c \
+	 Config/cfg_wpa_supplicant.c \
+	 execprincipal.c \
+     	 watchdogwifi.c \
+     	 passwd.c \
+	 gestconfig.c \
+         gestreboot.c \
+	 ../LibrarySystem/librarySystem.a \
+	 ../LibraryWifi/libraryWifi.a \
+	 ../LibraryBdd/libraryBdd.a \
+	 ../LibraryNetwork/libraryNetwork.a
+
+OBJ= ${SRC:.c=.o}
+
+
+all: ${EXEC}
+
+${EXEC} : ${OBJ}
+	${CC} -o ${EXEC} ${OBJ} ${LDFLAGS}
+
+%.o: .c
+	${CC} -o $@ -c @< ${CFLAGS}
+
+clean : 
+	@find -name "*.o" | xargs rm -rf
+
+distclean :
+	@rm -rf ${EXEC} 

@@ -1,0 +1,77 @@
+#========================================================================
+# NOM DU FICHIER  : Makefile
+#========================================================================
+# Auteur          : CM
+# Date  		  : 21/10/2011
+# Libelle         : Makefile de la librarie Bdd
+# Projet          : STREAMEASY
+# Indice          : BE050
+#========================================================================
+# Historique      :                                                      
+#BE000 21/10/2011 CM
+# - CREATION
+#BE005 14/11/2011 CM
+# - Ajout bdd cip ftp/usb pour dialoguer avec le processus qui gère la configuration par FTP / USB
+#BE016 13/01/2012 CM
+# - Ajout bdd cip asserv_10MHz pour dialoguer avec le processus asserv_10MHz
+#BE019 24/01/2012 CM
+# - Ajout bdd cip_periphs
+#BE024 CM 02/02/2012
+# - Deplace gestion fichiers sodielec dans la librairie ASFile
+#BE027 17/02/2012 CM
+# - Ajout bdd cip_fav
+#BE041 13/03/2012 GT
+# - Ajout bdd cip_wdog
+#BE050 CM 04/04/2012
+# - Integration gestion amplis
+#========================================================================
+
+CFLAGS=${ACTIA_CFLAGS}
+CFLAGS+=-DCOMPIL_LIBRARYBDD
+
+LDFLAGS=${ACTIA_LDFLAGS}
+
+EXEC= libraryBdd
+SRC= bddfile.c \
+	 bddjdb.c \
+	 bddsystemfile.c \
+	 cip_jdb.c \
+	 cip_monitor.c \
+	 cip_snmpd.c \
+	 cip_trap.c \
+	 client.c \
+	 config.c \
+	 custom_langue.c \
+	 debug.c \
+	 def_configfiles.c \
+	 def_exploitfiles.c \
+	 event.c \
+	 exp_event.c \
+	 exploit.c \
+	 fctu8bit.c \
+	 http.c \
+	 langue.c \
+	 libraryBdd.c \
+	 locksem.c \
+	 procfile.c \
+	 timeout.c \
+	 ad7814.c \
+	 ksz8893.c \
+	 valeurs.c \
+	 environmt.c \
+	 list_freq.c 
+OBJ= ${SRC:.c=.o}
+
+all: ${EXEC}
+
+${EXEC} : ${OBJ}
+	${CROSS_COMPILE}ar rcs $@.a $^
+
+%.o: %.c  
+	$(CC) -o $@ -c $< ${CFLAGS}
+
+clean : 
+	@rm -rf *.o ${EXEC}.a
+
+mrproper : clean
+	@rm -rf ${EXEC}.a

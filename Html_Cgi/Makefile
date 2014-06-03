@@ -1,0 +1,120 @@
+#========================================================================
+# NOM DU FICHIER  : Makefile
+#========================================================================
+# Auteur          : CM
+# Date  		  : 21/10/2011
+# Libelle         : Makefile du processus CGI
+# Projet          : STREAMEASY
+# Indice          : BE092
+#========================================================================
+# Historique      :                                                      
+#BE003 07/11/2011 CM
+# - mise à jour des pages HTML
+#BE004 10/11/2011 CM
+# - Ajout interface des objets HTML T2 avec base de données
+#BE008 28/11/2011 CM
+# - Ajout compilation avec librairie FastCgi
+#BE010 02/12/2011 CM
+# - Integration des pages HTML de configuration de la sous-traitance
+# - Ajout lien HTML "Se déconnecter" dans le menu de gauche
+# - Ajout librairie syslog
+#BE013 15/12/2011 CM
+# - Integration pages HTML config
+#BE014 03/01/2012 CM
+# - Integration compilation sur target NH4 / IMB1
+#BE016 12/01/2012 CM
+# - Ajout page HTML Etat de configuration
+#BE017 16/01/2012
+# - Correction bug programme CGi sur target NH4
+#	=> erreur ./cgi_fh: symbol lookup error: ./cgi_fh: undefined symbol: xmlParseMemory
+#		uniquement pour cgi_fh, on compile en static la librairie xml et json 
+#BE023 CM 01/02/2012
+# - Integration pages HTML config (30/01/2012)
+#BE024 CM 03/02/2012   
+# - Ajout librairie AS XML
+#BE042 CM 16/03/2012
+# - nouveau module
+#BE064 CM 08/06/2012
+# - Ajout calibration puissance voie emission
+#BE082 CM 01/08/2012
+# - Ajout module suconfigRack + vconfigRack
+#BE090 CM 02/10/2012
+# - Ajout page HTML etat calibration wattmetre
+#BE092 MS 21/09/2012
+# - développement du Mode DVB-TH	
+#		-> page HTML de configuration du mode DVB-TH
+#========================================================================
+
+CFLAGS=${ACTIA_CFLAGS}
+
+LDFLAGS=${ACTIA_LDFLAGS}
+LDFLAGS+=-lm
+
+EXEC= cgi_fh
+SRC= Cgi/cgi.c \
+	 Cgi/cgivars.c \
+	 Utile/bdd_html.c \
+	 Utile/divers.c \
+	 Utile/javascript.c \
+	 Utile/refresh.c \
+	 Frame/frame.c \
+	 Frame/vaccueil.c \
+	 Frame/vconsole.c \
+	 Frame/vcontact.c \
+	 Frame/vhomeA.c \
+	 Frame/vhomeB.c \
+	 Frame/vhomeC.c \
+	 Frame/vsynoptique.c \
+	 Frame/vwarning.c \
+	 Frame/vcfginprogress.c \
+	 Admin/pages.c \
+	 Admin/suadmcontrol.c \
+	 Admin/suadmidentif.c \
+	 Admin/sulangue.c \
+	 Admin/surefresh.c \
+	 Admin/susecurite.c \
+	 Admin/susystemlog.c \
+	 Admin/sutime.c \
+	 Admin/vadmversions.c \
+	 Config/suconfigDhcp.c \
+	 Config/suconfigMode.c \
+	 Config/suconfigMulticast.c \
+	 Config/suconfigNat.c \
+	 Config/suconfigNetwork.c \
+	 Config/suconfigRoutingGene.c \
+	 Config/suconfigRoutingPolitic.c \
+	 Config/suconfigRoutingRip.c \
+	 Config/suconfigRoutingStatic.c \
+	 Config/suconfigSnmp.c \
+	 Config/suconfigWirelessAdv.c \
+	 Config/suconfigWirelessBasic.c \
+	 Config/suconfigHandoff.c \
+	 Exploit/vexploitGeneral.c \
+	 Exploit/vexploitDhcpClient.c \
+	 Exploit/vexploitNetwork.c \
+	 Exploit/vexploitWireless.c \
+	 Hdebug/vdebug.c \
+	 Hdebug/vtestfinal.c \
+	 Evt/suevt.c \
+	 Evt/vjdbevt.c \
+	 Evt/vlisteEvt.c \
+	 Evt/vtrap.c \
+	 Alarme/valarme.c \
+	 Alarme/vlistealarme.c \
+	 ../LibrarySystem/librarySystem.a \
+	 ../LibraryBdd/libraryBdd.a
+OBJ= ${SRC:.c=.o}
+
+all: ${EXEC}
+
+${EXEC} : ${OBJ}
+	${CC} -o ${EXEC} ${OBJ} ${LDFLAGS}
+
+%.o: .c
+	${CC} -o $@ -c @< ${CFLAGS}
+
+clean : 
+	@find -name "*.o" | xargs rm -rf
+
+distclean :
+	@rm -rf ${EXEC} 

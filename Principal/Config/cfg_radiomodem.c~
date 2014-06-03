@@ -1,0 +1,357 @@
+/*========================================================================*/
+/* NOM DU FICHIER  : cfg_radiomodem.c	                                  */
+/*========================================================================*/
+/* Compilateur     : GCC                                                  */
+/* Linking locator : GCC                                                  */
+/* Formatter       : GCC                                                  */
+/* Auteur          : CM                                                   */
+/* Date			   : 02/03/2010                                           */
+/* Libelle         : Principal: Configuration du radio modem			  */
+/* Projet          : WRM100                                               */
+/* Indice          : BE058                                                */
+/*========================================================================*/
+/* Historique      :                                                      */
+//BE013 02/03/2010 CM
+// - CREATION
+//BE021 24/03/2010 CM
+// - Correction BUG liaison bridge-bridge
+//BE022 29/03/2010 CM
+// - Ajout gestion multicast
+//BE025 15/04/2010 CM
+// - Modification gestion reconfiguration (quand interface down)
+//BE032 16/06/2010 CM
+// - Correction commande iwconfig 'txpower' (Wifi) repasse au maximum sur A/M ou sur down/up interface Wifi
+//BE044 29/10/2010 CM
+// - Modification déchargement des modules du driver wifi
+//BE047 29/11/2010 CM
+// - Optimisation configuration radio modem / amelioration ergonomie
+//BE054 11/01/2011 CM
+// - Ajout gestion mode monitor
+//BE056 18/01/2011 CM
+// - Ajout limitation de la bande de fréquence aux canaux ETSI non DFS pour WRM100-ABG
+// - Suppression msg de debug qui pollue le kernel dans Driver-ABG
+//BE058 21/01/2011 CM
+// - Ajout configuration "desactivation DFS" (WRM100-N)
+/*========================================================================*/
+
+/*_____I - COMMENTAIRES - DEFINITIONS -  REMARQUES _______________________*/
+
+/*_____II - DEFINE SBIT __________________________________________________*/
+#define _CFG_RADIOMODEM
+
+/*_____III - INCLUDE - DIRECTIVES ________________________________________*/
+#include "../headers.h"
+
+#define PATH__DRIVER_WIFI "/usr/wireless"
+#define	SCRIPT__UNLOAD_MODULES_DRIVER_WIFI				"unload_modules.sh"
+#define SCRIPT__LOAD_MODULES_DRIVER_WIFI_ACCESS_POINT	"load_modules_ap.sh"
+#define SCRIPT__LOAD_MODULES_DRIVER_WIFI_STATION		"load_modules_sta.sh"
+#define SCRIPT__LOAD_MODULES_DRIVER_WIFI_MONITOR		"load_modules_monitor.sh"
+
+
+/*_____IV - VARIABLES GLOBALES ___________________________________________*/
+
+/*_____V - PROCEDURES ____________________________________________________*/
+
+//=====================================================================================
+// Fonction		: Install_RadioModem
+// Entrees		: <loc_ps_config< : pointeur sur configuration courante
+// Sortie		: rien
+// Auteur		: CM - 24/09/2009 -
+// Description	: Installe la configuration du radio modem configuré
+//		!!!!ATTENTION: CETTE FONCTION N'EST PAS PROTEGE PAR SEMAPHORE DE CONFIGURATION!!!!
+//=====================================================================================
+void Install_RadioModem(S_STRUCT_CONFIGURATION *loc_ps_config)
+{
+	u8sod loc_u8_i;
+	
+	printf("Install_RadioModem\n");
+
+	//Initialisation
+	for(loc_u8_i=0;loc_u8_i<NB_MAX_ORDRE_RECONFIG;loc_u8_i++)
+	{
+		ClearOrdreReconfiguration(loc_u8_i); //RAZ
+	}
+	
+	switch(loc_ps_config->s_gene.u8_mode_radio_modem)
+	{
+		case MODE_RADIO_MODEM_ACCESS_POINT:
+			//Désactivation message de debug du module driver wifi de niveau KERN_INFO
+			//donc suppression des messages de niveau inférieur KERN_WARN
+
+			if(MODE_IP_STATIQUE == loc_ps_config->s_gene.u8_bridge_mode_ip)
+			{
+				CmdIfconfigEthernetAliasTempo_Up(loc_ps_config->s_gene.u32_bridge_adresse_ip, loc_ps_config->s_gene.u32_bridge_masque_reseau);
+			}
+			
+			//Load modules Wifi (ACCESS POINT) from the Linux Kernel
+#ifdef _WRM100_ABG_SELECT
+			CmdSystem_Generique("cd %s && ./%s 0x%X && cd %s",
+								PATH__DRIVER_WIFI,
+								SCRIPT__LOAD_MODULES_DRIVER_WIFI_ACCESS_POINT,
+								u16_countryID_debug, //valeur du regdomain!! et non du countryid sur ABG
+								PATH_DIR_ROOT);
+#endif
+#ifdef _WRM100_N_SELECT
+			CmdSystem_Generique("cd %s && ./%s %d && cd %s",
+								PATH__DRIVER_WIFI,
+								SCRIPT__LOAD_MODULES_DRIVER_WIFI_ACCESS_POINT,
+								loc_ps_config->s_wifi.u8_desactivation_DFS,
+								PATH_DIR_ROOT);
+			printf("**************************************************************************\n);
+			printf("*****************MODE_RADIO_MODEM_ACCESS_POINT****************************\n);
+			printf("**************************************************************************\n);
+#endif
+
+			//tempo  de 1 seconde
+			sleep(1);
+
+			//Initialisation du driver (sinon txpower non reconnu, la première fois)
+			CmdSystem_Generique("ifconfig %s up && ifconfig %s down",
+								NOM_INTERFACE_WIFI,
+								NOM_INTERFACE_WIFI);
+			
+			//Configuration du Wifi
+			Install_Wifi(loc_ps_config);
+			Install_AdvWifi(loc_ps_config);
+
+			if(MODE_IP_STATIQUE == loc_ps_config->s_gene.u8_bridge_mode_ip)
+			{
+				CmdIfconfigEthernetAliasTempo_Down();
+			}
+			
+			//On donne l'ordre de configurer le réseau
+			Install_NetworkBridge(loc_ps_config);
+			
+			//Configuration de la sécurité Wifi
+			Install_SecuriteWifi(loc_ps_config);
+			
+			break;
+		case MODE_RADIO_MODEM_STATION:
+			//Désactivation message de debug du module driver wifi de niveau KERN_INFO
+			//donc suppression des messages de niveau inférieur KERN_WARN
+			switch(loc_ps_config->s_gene.u8_mode_network)
+			{
+				case MODE_NETWORK_BRIDGE:
+					if(MODE_IP_STATIQUE == loc_ps_config->s_gene.u8_bridge_mode_ip)
+					{
+						CmdIfconfigEthernetAliasTempo_Up(loc_ps_config->s_gene.u32_bridge_adresse_ip, loc_ps_config->s_gene.u32_bridge_masque_reseau);
+					}
+					break;
+					printf("**************************************************************************\n);
+					printf("***************************MODE_NETWORK_BRIDGE****************************\n);
+					printf("**************************************************************************\n);
+				case MODE_NETWORK_ROUTER:
+					CmdIfconfigEthernetAliasTempo_Up(loc_ps_config->s_gene.u32_lan_adresse_ip, loc_ps_config->s_gene.u32_lan_masque_reseau);
+					printf("**************************************************************************\n);
+					printf("***************************MODE_NETWORK_ROUTER****************************\n);
+					printf("**************************************************************************\n);
+					break;
+				default:
+					break;
+			}
+			
+			//Load modules Wifi (STATION) from the Linux Kernel
+#ifdef _WRM100_ABG_SELECT
+			CmdSystem_Generique("cd %s && ./%s 0x%X && cd %s",
+								PATH__DRIVER_WIFI,
+								SCRIPT__LOAD_MODULES_DRIVER_WIFI_STATION,
+								u16_countryID_debug, //valeur du regdomain!! et non du countryid sur ABG
+								PATH_DIR_ROOT);
+#endif
+#ifdef _WRM100_N_SELECT
+			CmdSystem_Generique("cd %s && ./%s %d && cd %s",
+								PATH__DRIVER_WIFI,
+								SCRIPT__LOAD_MODULES_DRIVER_WIFI_STATION,
+								loc_ps_config->s_wifi.u8_desactivation_DFS,
+								PATH_DIR_ROOT);
+#endif
+
+			//tempo  de 1 seconde
+			sleep(1);
+
+			//Initialisation du driver (sinon txpower non reconnu, la première fois)
+			CmdSystem_Generique("ifconfig %s up && ifconfig %s down",
+							    NOM_INTERFACE_WIFI,
+								NOM_INTERFACE_WIFI);
+			
+			//Configuration du Wifi
+			Install_Wifi(loc_ps_config);
+			Install_AdvWifi(loc_ps_config);
+
+			switch(loc_ps_config->s_gene.u8_mode_network)
+			{
+				case MODE_NETWORK_BRIDGE:
+					if(MODE_IP_STATIQUE == loc_ps_config->s_gene.u8_bridge_mode_ip)
+					{
+						CmdIfconfigEthernetAliasTempo_Down();
+					}
+					break;
+				case MODE_NETWORK_ROUTER:
+					CmdIfconfigEthernetAliasTempo_Down();
+					break;
+				default:
+					break;
+			}
+			
+			//Configuration du réseau
+			switch(loc_ps_config->s_gene.u8_mode_network)
+			{
+				case MODE_NETWORK_BRIDGE:
+					//Configuration du bridge
+					Install_NetworkBridge(loc_ps_config);
+					break;
+				case MODE_NETWORK_ROUTER:
+					//Configuration du router
+					Install_NetworkRouter(loc_ps_config);
+					//Configuration de la fonction DHCP
+					Install_FctDHCP(loc_ps_config);
+					if(MODE_IP_STATIQUE == loc_ps_config->s_gene.u8_wlan_mode_ip)
+					{
+						//Installation du NAT
+						Install_Nat(loc_ps_config, loc_ps_config->s_gene.u32_wlan_adresse_ip, loc_ps_config->s_gene.u32_wlan_masque_reseau);
+					}
+					break;
+				default:
+					break;
+			}
+			
+			//Configuration de la sécurité Wifi
+			Install_SecuriteWifi(loc_ps_config);
+			
+			break;
+			
+		case MODE_RADIO_MODEM_MONITOR:
+			if(MODE_IP_STATIQUE == loc_ps_config->s_gene.u8_bridge_mode_ip)
+			{
+				CmdIfconfigEthernetAliasTempo_Up(loc_ps_config->s_gene.u32_bridge_adresse_ip, loc_ps_config->s_gene.u32_bridge_masque_reseau);
+			}
+
+			//Load modules Wifi (ACCESS POINT) from the Linux Kernel
+#ifdef _WRM100_ABG_SELECT
+			CmdSystem_Generique("cd %s && ./%s 0x%X && cd %s",
+								PATH__DRIVER_WIFI,
+								SCRIPT__LOAD_MODULES_DRIVER_WIFI_MONITOR,
+								u16_countryID_debug, //valeur du regdomain!! et non du countryid sur ABG
+								PATH_DIR_ROOT);
+#endif
+#ifdef _WRM100_N_SELECT
+			CmdSystem_Generique("cd %s && ./%s && cd %s",
+								PATH__DRIVER_WIFI,
+								SCRIPT__LOAD_MODULES_DRIVER_WIFI_MONITOR,
+								PATH_DIR_ROOT);
+#endif
+
+			//tempo  de 1 seconde
+			sleep(1);
+
+			//Initialisation du driver (sinon txpower non reconnu, la première fois)
+			CmdSystem_Generique("ifconfig %s up && ifconfig %s down",
+								NOM_INTERFACE_WIFI,
+								NOM_INTERFACE_WIFI);
+
+			//Configuration du Wifi
+			Install_Wifi(loc_ps_config);
+			Install_AdvWifi(loc_ps_config);
+
+			if(MODE_IP_STATIQUE == loc_ps_config->s_gene.u8_bridge_mode_ip)
+			{
+				CmdIfconfigEthernetAliasTempo_Down();
+			}
+
+			//On donne l'ordre de configurer le réseau
+			Install_NetworkBridge(loc_ps_config);
+
+			//On rederige tcpdump sur syslog
+			CmdSystem_Generique("%s &",SCRIPT_SYSLG_TCPDUMP);
+			
+			break;
+		default:
+			break;
+	}
+
+
+	//Dernière étape
+	switch(loc_ps_config->s_gene.u8_mode_radio_modem)
+	{
+		case MODE_RADIO_MODEM_ACCESS_POINT:
+			ExecReconfiguration_HostApd(loc_ps_config);
+			break;
+		case MODE_RADIO_MODEM_STATION:
+			ExecReconfiguration_WpaSupplicant(loc_ps_config);
+			ExecReconfiguration_Routage(loc_ps_config);
+			ExecReconfiguration_Multicast(loc_ps_config);
+			break;
+		case MODE_RADIO_MODEM_MONITOR:
+			break;
+		default:
+			break;
+	}
+
+}/*Install_RadioModem*/
+
+//=====================================================================================
+// Fonction		: Uninstall_RadioModem
+// Entrees		: <loc_ps_config< : pointeur sur ancienne configuration
+// Sortie		: rien
+// Auteur		: CM - 24/09/2009 -
+// Description	: Désinstalle la configuration du radio modem configuré
+//=====================================================================================
+void Uninstall_RadioModem(S_STRUCT_CONFIGURATION *loc_ps_config)
+{
+	printf("Uninstall_RadioModem\n");
+	//REMARQUE: on désinstalle dans l'ordre inverse de l'installation
+
+	//On désinstalle la redirection tcpdump de syslog
+	CmdSystem_Generique("killall tcpdump");
+	
+	//Désinstallation du NAT
+	Uninstall_Nat(loc_ps_config);
+
+	//Désinstallation de la fonction DHCP
+	Uninstall_FctDHCP(loc_ps_config);
+
+	//Désintallation du routeur
+	Uninstall_NetworkRouter(loc_ps_config);
+
+	//Désintallation du bridge
+	Uninstall_NetworkBridge(loc_ps_config);
+
+	if(MODE_IP_STATIQUE == loc_ps_config->s_gene.u8_bridge_mode_ip)
+	{
+		CmdIfconfigEthernetAliasTempo_Up(loc_ps_config->s_gene.u32_bridge_adresse_ip, loc_ps_config->s_gene.u32_bridge_masque_reseau);
+	}
+	
+	//Désinstallation de la sécurité Wifi
+	Uninstall_SecuriteWifi(loc_ps_config);
+
+	//Désinstallation du wifi
+	Uninstall_Wifi(loc_ps_config);
+
+	//Remove modules Wifi from the Linux Kernel
+	CmdSystem_Generique("cd %s && ./%s && cd %s",
+						PATH__DRIVER_WIFI,
+						SCRIPT__UNLOAD_MODULES_DRIVER_WIFI,
+						PATH_DIR_ROOT);
+
+	if(MODE_IP_STATIQUE == loc_ps_config->s_gene.u8_bridge_mode_ip)
+	{
+		CmdIfconfigEthernetAliasTempo_Down();
+	}
+	
+}/*Uninstall_RadioModem*/
+
+/*_____VII - PROCEDURE D'INITIALISATION __________________________________*/
+
+//=====================================================================================
+// Fonction		: InitModule_Cfg_RadioModem
+// Entrees		: rien
+// Sortie		: rien
+// Auteur		: CM - 24/09/2009 -
+// Description	: Initialisation du module de cfg_radiomodem
+//=====================================================================================
+void InitModule_Cfg_RadioModem(void)
+{
+	
+}/*InitModule_Cfg_RadioModem*/
+

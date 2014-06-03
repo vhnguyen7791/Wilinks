@@ -1,0 +1,292 @@
+#========================================================================
+# NOM DU FICHIER  : Makefile
+#========================================================================
+# Auteur          : PCR
+# Date		  	  : 15/04/2013
+# Libelle         : Makefile du projet
+# Projet          : WILINK
+# Indice          : BE000
+#========================================================================
+# Historique      :                                                      
+#========================================================================
+
+#Include fichier definition projet
+include ../../projet.conf
+
+export PATH_SYSROOTDIR=$(PATH_INSTALL_PROJET_PLATFORM)/output/host/usr/arm-unknown-linux-gnueabi/sysroot
+
+#selection type cible de la machine (32: 32bits ou 64: 64bits)
+export make_CMACHINE=32
+
+#Compilation CLIENT
+#SODIELEC: compilation pour sodielec ;
+export make_CLIENT=SODIELEC
+
+#Compilation TARGET
+#CPU: compilation pour TARGET CPU; 
+#EVAL:compilation pour TARGET EVAL ; 
+#PC: compilation pour PC
+export make_TARGET=CPU
+
+ifeq ($(make_TARGET),CPU)
+include profil_CPU.inc
+else
+ifeq ($(make_TARGET),EVAL)
+include profil_EVAL.inc
+else
+include profil_PC.inc
+endif
+endif
+
+
+#V�rification type cible machine
+ifeq ($(make_CMACHINE),64)
+ifeq ($(make_fram),y)
+$(error FRAM not supported)
+endif
+ifeq ($(make_simulation_FRAM),y)
+$(error simulation FRAM not supported)
+endif
+endif
+
+
+#V�rification CLIENT
+ifneq ($(make_CLIENT),SODIELEC)
+$(error CLIENT must be selected)
+endif
+
+#V�rification TARGET
+ifneq ($(make_TARGET),CPU)
+ifneq ($(make_TARGET),EVAL)
+ifneq ($(make_TARGET),PC)
+$(error TARGET must be selected)
+endif
+endif
+endif
+
+export CC=${CROSS_COMPILE}gcc
+LOC_CFLAGS=-W -Wall -g -fsigned-char
+ifeq ($(make_TARGET),PC)
+	LOC_CFLAGS+= -DCOMPIL_PC_LINUX=1
+endif
+ifeq ($(make_TARGET),CPU)
+	LOC_CFLAGS+= -DCOMPIL_TARGET_CPU=1
+endif
+ifeq ($(make_TARGET),EVAL)
+	LOC_CFLAGS+= -DCOMPIL_TARGET_EVAL=1
+endif
+ifeq ($(make_CLIENT),SODIELEC)
+	LOC_CFLAGS+= -DCOMPIL_SODIELEC=1
+endif
+ifeq ($(make_fram),y)
+	LOC_CFLAGS+= -DSUPPORT_FRAM=1
+endif
+ifeq ($(make_simulation_FRAM),y)
+	LOC_CFLAGS+= -DSUPPORT_SIMULATION_FRAM=1 
+endif
+ifeq ($(make_eeprom),y)
+	LOC_CFLAGS+= -DSUPPORT_EEPROM=1
+endif
+ifeq ($(make_DEBUG_DVLPMT),y)
+	LOC_CFLAGS+= -DCOMPIL_DEBUG_DVLPMT=1
+endif
+
+ifeq ($(make_TARGET),PC)
+else #EVAL, CPU
+LOC_CFLAGS+= -march=armv7-a
+#LOC_CFLAGS+= --sysroot=$(PATH_SYSROOTDIR)
+#LOC_CFLAGS+= -I$(PATH_SYSROOTDIR)/usr/include
+LOC_CFLAGS+= -I$(PATH_APPLI)/Source/Driver_Aquila
+endif
+
+#Adding by Vu Hai to select WRM100_N
+DEFINES = -D_WRM100_N_SELECT
+LOC_CFLAGS+= $(DEFINES)
+#IDE_INCLUDES = -I$(PATH_WORKSPACE)/ACCESS_POINT_APPLI/Source/Driver-N
+#LOC_CFLAGS+= $(IDE_INCLUDES)
+
+$(info LOC_CFLAGS result = $(LOC_CFLAGS))
+
+export ACTIA_CFLAGS=${LOC_CFLAGS}
+
+#Ajout option au linker pour stripper les binaires g�n�r�s
+export ACTIA_LDFLAGS= -s 
+ifeq ($(make_TARGET),PC)
+else #EVAL, CPU
+ACTIA_LDFLAGS+= -L$(PATH_SYSROOTDIR)/usr/lib
+endif
+ACTIA_LDFLAGS+= --sysroot=$(PATH_SYSROOTDIR)
+
+
+
+
+ifeq ($(make_CLIENT),SODIELEC)
+all: sodielec
+clean: sodielec-clean
+endif
+
+sodielec: librarybdd \
+	librarysystem \
+	librarywifi \
+	librarynetwork \
+	principal \
+	html_cgi \
+	getversionuboot \
+	update \
+	monitor \
+	jdb \
+	time \
+	conf_sftp 
+	#net_snmp 
+	#test_tools 
+	 
+
+sodielec-clean: librarybdd-clean \
+				librarysystem-clean \
+				librarywifi-clean \
+				librarynetwork-clean \
+				principal-clean \
+				html_cgi-clean \
+				getversionuboot-clean \
+				update-clean  \
+				monitor-clean \
+				jdb-clean \
+				time-clean \
+				conf_sftp-clean 
+				#net_snmp-clean 
+				#test_tools-clean \
+				
+
+librarybdd: 
+	@echo "Compilation librairie Bdd"
+	make -C LibraryBdd
+	@echo ""
+librarybdd-clean: 
+	@echo "Clean librairie Bdd"
+	@make -C LibraryBdd clean
+	@echo ""
+
+librarysystem: 
+	@echo "Compilation librairie System"
+	make -C LibrarySystem
+	@echo ""
+librarysystem-clean: 
+	@echo "Clean librairie System"
+	make -C LibrarySystem clean
+	@echo ""
+
+librarywifi: 
+	@echo "Compilation librairie Wifi"
+	make -C LibraryWifi
+	@echo ""
+librarywifi-clean: 
+	@echo "Clean librairie Wifi"
+	make -C LibraryWifi clean
+	@echo ""
+
+librarynetwork: 
+	@echo "Compilation librairie Network"
+	make -C LibraryNetwork
+	@echo ""
+librarynetwork-clean: 
+	@echo "Clean librairie Network"
+	make -C LibraryNetwork clean
+	@echo ""
+
+principal: 
+	@echo "Compilation processus Principal"
+	make -C Principal
+	@echo ""
+principal-clean: 
+	@echo "Clean processus Principal"
+	make -C Principal clean
+	@echo ""
+
+monitor: 
+	@echo "Compilation processus Monitor"
+	@make -C Monitor
+	@echo ""
+monitor-clean: 
+	@echo "Clean processus Monitor"
+	make -C Monitor clean
+	@echo ""
+
+jdb: 
+	@echo "Compilation processus Jdb"
+	@make -C Jdb
+	@echo ""
+jdb-clean: 
+	@echo "Clean processus Jdb"
+	@make -C Jdb clean
+	@echo ""
+
+html_cgi: 
+	@echo "Compilation processus Cgi_fh"
+	@make -C Html_Cgi
+	@echo ""
+html_cgi-clean: 
+	@echo "Clean processus Cgi_fh"
+	make -C Html_Cgi clean
+	@echo ""
+
+conf_sftp: 
+	@echo "Compilation processus conf_sftp"
+	@make -C Conf_sFTP
+	@echo ""
+conf_sftp-clean: 
+	@echo "Clean processus conf_sftp"
+	@make -C Conf_sFTP clean
+	@echo ""
+
+getversionuboot: 
+	@echo "Compilation processus getversionuboot"
+	@make -C GetVersionUboot
+	@echo ""
+getversionuboot-clean: 
+	@echo "Clean processus getversionuboot"
+	@make -C GetVersionUboot clean
+	@echo ""
+
+#test_tools: 
+#	@echo "Compilation processus Test Tools"
+#	@make -C Test_tools
+#	@echo ""
+#test_tools-clean: 
+#	@echo "Clean processus Test Tools"
+#	@make -C Test_tools clean
+#	@echo ""
+
+time: 
+	@echo "Compilation processus Time"
+	@echo "Compilation restoretime"
+	@make -C Time -f Make_restoretime
+	@echo ""
+	@echo "Compilation savetime"
+	@make -C Time -f Make_savetime
+	@echo ""	
+time-clean: 
+	@echo "Clean processus Time"
+	@echo "Clean restoretime"
+	@make -C Time -f Make_restoretime clean
+	@echo ""
+	@echo "Clean savetime"
+	@make -C Time -f Make_savetime clean
+	@echo ""
+
+update: 
+	@echo "Compilation processus Update"
+	@make -C Update
+	@echo ""
+update-clean: 
+	@echo "Clean processus Update"
+	@make -C Update clean
+	@echo ""
+
+#net_snmp: 
+#	@echo "Compilation processus net_snmp"
+#	@make -C net_snmp/sodielec
+#	@echo ""
+#net_snmp-clean: 
+#	@echo "Clean processus net_snmp"
+#	@make -C net_snmp/sodielec clean
+#	@echo ""
